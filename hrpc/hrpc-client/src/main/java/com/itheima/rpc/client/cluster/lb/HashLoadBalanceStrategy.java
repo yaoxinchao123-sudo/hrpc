@@ -6,7 +6,9 @@ import com.itheima.rpc.provider.ServiceProvider;
 import com.itheima.rpc.util.IpUtil;
 
 import java.util.List;
-
+/**
+ * 哈希负载均衡策略
+ */
 @HrpcLoadBalance(strategy = "hash")
 public class HashLoadBalanceStrategy implements LoadBalanceStrategy {
     @Override

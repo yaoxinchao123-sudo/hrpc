@@ -8,5 +8,9 @@ package com.itheima.rpc.client.cluster;
  */
 public interface StartegyProvider {
 
+    /***
+     * 策略模式
+     * @return
+     */
     LoadBalanceStrategy getStrategy();
 }

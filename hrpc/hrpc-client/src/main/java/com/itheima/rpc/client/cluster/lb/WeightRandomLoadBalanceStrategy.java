@@ -8,6 +8,9 @@ import org.apache.commons.lang3.RandomUtils;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 随机权重负载均衡策略
+ */
 @HrpcLoadBalance(strategy = "weight_random")
 public class WeightRandomLoadBalanceStrategy implements LoadBalanceStrategy {
     @Override

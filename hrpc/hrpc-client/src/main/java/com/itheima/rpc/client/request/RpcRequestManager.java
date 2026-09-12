@@ -51,7 +51,9 @@ public class RpcRequestManager {
         }
         // 找出一个具体的提供者
         // 负载均衡
+        // 得到用户配置的负载均衡策略
         LoadBalanceStrategy strategy = startegyProvider.getStrategy();
+        // 根据负载均衡策略，从服务提供者列表中选择一个具体的服务提供者
         ServiceProvider provider = strategy.select(serviceProviders);
         return requestByNetty(provider,request);
     }
@@ -60,7 +62,9 @@ public class RpcRequestManager {
     private RpcResponse requestByNetty(ServiceProvider provider, RpcRequest request) {
         Channel channel = null;
         try {
-            // 判断对端的channel是否已建立好
+            // 判断对端的channel是否已建立好: 客户端应用程序和服务端应用程序，只需要建立一次连接，后期复用
+            // key:   ip:port
+            // value: channel对象
             if (!RpcRequestHolder.channelExist(provider.getServerIp(),provider.getRpcPort())) {
                 // netty的客户端代码
                 EventLoopGroup group = new NioEventLoopGroup(0,new DefaultThreadFactory("worker" ));
@@ -104,12 +108,18 @@ public class RpcRequestManager {
                                 pipeline.addLast("rpcResponseHandler",new RpcResponseHandler());
                             }
                         });
-                // 1. 建立连接，sync()是同步阻塞的，等待连接建立成功
-                ChannelFuture future = bootstrap.connect(provider.getServerIp(), provider.getRpcPort()).sync();
-                if (future.isSuccess()) {
-                    // 连接建立成功，拿到channel
-                    channel = future.channel();
-                    RpcRequestHolder.addChannelMapping(new ChannelMapping(provider.getServerIp(), provider.getRpcPort(),channel));
+                try {
+                    // 1. 建立连接，sync()是同步阻塞的，等待连接建立成功
+                    ChannelFuture future = bootstrap.connect(provider.getServerIp(), provider.getRpcPort()).sync();
+                    if (future.isSuccess()) {
+                        // 连接建立成功，拿到channel
+                        channel = future.channel();
+                        // 保存channel，方便后续复用
+                        RpcRequestHolder.addChannelMapping(new ChannelMapping(provider.getServerIp(), provider.getRpcPort(),channel));
+                    }
+                } catch (Exception e) {
+                    log.error("连接建立失败, provider"+provider);
+                    throw new RpcException("连接建立失败, provider"+provider);
                 }
             }
             channel = RpcRequestHolder.getChannel(provider.getServerIp(), provider.getRpcPort());
@@ -121,7 +131,7 @@ public class RpcRequestManager {
             // 建立请求和promise的映射
             RpcRequestHolder.addRequestPromise(request.getRequestId(), requestPromise);
             // 使用channel，发送数据
-            ChannelFuture f = channel.writeAndFlush(request);
+            channel.writeAndFlush(request);
 
             // 3. 等待promise返回结果
             try {

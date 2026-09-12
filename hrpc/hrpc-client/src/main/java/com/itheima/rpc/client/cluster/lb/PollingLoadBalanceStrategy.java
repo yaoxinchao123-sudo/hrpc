@@ -9,12 +9,19 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 
+/**
+ * 轮询负载均衡策略: 如果当前用了index这个下标，那么下次就要使用index+1
+ */
 @HrpcLoadBalance(strategy = "polling")
 @Slf4j
 public class PollingLoadBalanceStrategy implements LoadBalanceStrategy {
 
+    /**
+     * 定义一个指针：表示当前使用的
+     */
     private int index;
 
+    // 并发排序， 保证线程安全，防止多个线程同时修改index【多个线程同时不会获取同一个index值】
     private ReentrantLock lock = new ReentrantLock();
 
     @Override
@@ -26,6 +33,7 @@ public class PollingLoadBalanceStrategy implements LoadBalanceStrategy {
             }*/
             ServiceProvider serviceProvider = serviceProviders.get(index);
 //            index++;
+            // [0,3)  0  1   2
             index = (index+1) %  serviceProviders.size();
             return serviceProvider;
         } catch (InterruptedException e) {

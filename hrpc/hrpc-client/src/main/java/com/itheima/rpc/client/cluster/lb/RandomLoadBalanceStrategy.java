@@ -7,6 +7,9 @@ import org.apache.commons.lang3.RandomUtils;
 
 import java.util.List;
 
+/**
+ * 随机负载均衡策略
+ */
 @HrpcLoadBalance(strategy = "random")
 public class RandomLoadBalanceStrategy implements LoadBalanceStrategy {
 
