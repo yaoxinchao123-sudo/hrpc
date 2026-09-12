@@ -107,34 +107,37 @@ public class RpcRequestManager {
                 // 1. 建立连接，sync()是同步阻塞的，等待连接建立成功
                 ChannelFuture future = bootstrap.connect(provider.getServerIp(), provider.getRpcPort()).sync();
                 if (future.isSuccess()) {
-                    //连接建立成功，拿到channel
+                    // 连接建立成功，拿到channel
                     channel = future.channel();
-                    RpcRequestHolder.addChannelMapping(new ChannelMapping(provider.getServerIp(),
-                            provider.getRpcPort(),channel));
+                    RpcRequestHolder.addChannelMapping(new ChannelMapping(provider.getServerIp(), provider.getRpcPort(),channel));
                 }
             }
             channel = RpcRequestHolder.getChannel(provider.getServerIp(), provider.getRpcPort());
 
             //2. 向对端发送数据
-            //创建promise
+            // 创建promise，用于获取对端的响应结果
+            // 针对每个请求构建一个promise，拿到响应后使用其对应的promise设置结果【RpcResponseHandler中设置 requestPromise.setSuccess(response); 然后requestPromise.get();结束阻塞，拿到结果返回】
             RequestPromise requestPromise = new RequestPromise(channel.eventLoop());
-            //建立映射
-            RpcRequestHolder.addRequestPromise(request.getRequestId(),requestPromise);
+            // 建立请求和promise的映射
+            RpcRequestHolder.addRequestPromise(request.getRequestId(), requestPromise);
             // 使用channel，发送数据
             ChannelFuture f = channel.writeAndFlush(request);
 
             // 3. 等待promise返回结果
             try {
+                // 阻塞等待，直到获取到异步异步执行的响应结果
                 RpcResponse response = (RpcResponse) requestPromise.get();
                 return response;
             } catch (ExecutionException e) {
                 e.printStackTrace();
             }finally {
+                // 请求处理完成，移除request和promise的映射
                 RpcRequestHolder.removeRequestPromise(request.getRequestId());
             }
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
+        // 出现异常，返回一个默认的 RpcResponse对象
         return new RpcResponse();
     }
 }

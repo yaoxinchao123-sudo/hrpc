@@ -20,6 +20,9 @@ public class RpcRequestHolder {
 
     private static Map<String, RequestPromise> requestPromiseMap = new ConcurrentHashMap<String, RequestPromise>();
 
+    // 维护客户端对所有服务节点的映射,达到重复利用已创建好的channel key:serverip:port
+    private static Map<String,ChannelMapping> channelMappingMap = new ConcurrentHashMap<>();
+
     /**
      * 向容器中添加requestPromise
      * @param requestId
@@ -45,11 +48,6 @@ public class RpcRequestHolder {
     public static void removeRequestPromise(String requestId) {
         requestPromiseMap.remove(requestId);
     }
-
-
-    //维护客户端对所有服务节点的映射,达到重复利用已创建好的channel key:serverip:port
-    private static Map<String,ChannelMapping> channelMappingMap = new ConcurrentHashMap<>();
-
 
     /**
      * 判断客户端是否已存在该服务节点的连接

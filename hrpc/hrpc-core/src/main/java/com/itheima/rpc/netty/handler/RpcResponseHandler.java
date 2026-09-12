@@ -17,6 +17,7 @@ public class RpcResponseHandler extends SimpleChannelInboundHandler<RpcResponse>
         // 从映射中获取promise
         RequestPromise requestPromise = RpcRequestHolder.getRequestPromise(response.getRequestId());
         if (requestPromise!=null) {
+            // 设置响应结果， 这里设置后，promise就结束阻塞，可以获取结果了
             requestPromise.setSuccess(response);
         }
     }
