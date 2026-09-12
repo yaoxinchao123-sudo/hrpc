@@ -21,4 +21,20 @@ public class RpcResponseHandler extends SimpleChannelInboundHandler<RpcResponse>
             requestPromise.setSuccess(response);
         }
     }
+
+    @Override
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+        log.error("客户端Channel异常，remoteAddress={}，异常信息：{}", ctx.channel().remoteAddress(), cause.getMessage());
+        // 通道异常时，将所有等待中的Promise设置为失败，防止线程永久阻塞
+        RpcRequestHolder.failAllPromises(cause);
+        ctx.close();
+    }
+
+    @Override
+    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+        log.warn("客户端Channel连接已关闭，remoteAddress={}", ctx.channel().remoteAddress());
+        // 通道关闭时，将所有等待中的Promise设置为失败
+        RpcRequestHolder.failAllPromises(new RuntimeException("Channel连接已关闭"));
+        super.channelInactive(ctx);
+    }
 }

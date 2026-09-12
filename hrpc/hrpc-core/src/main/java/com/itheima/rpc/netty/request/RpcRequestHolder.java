@@ -50,6 +50,19 @@ public class RpcRequestHolder {
     }
 
     /**
+     * 将所有等待中的Promise设置为失败（Channel异常或关闭时调用）
+     * @param cause 异常原因
+     */
+    public static void failAllPromises(Throwable cause) {
+        requestPromiseMap.forEach((requestId, promise) -> {
+            if (!promise.isDone()) {
+                promise.setFailure(cause);
+            }
+        });
+        requestPromiseMap.clear();
+    }
+
+    /**
      * 判断客户端是否已存在该服务节点的连接
      * @param serverIp
      * @param serverPort

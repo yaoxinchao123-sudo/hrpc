@@ -29,6 +29,8 @@ import org.springframework.util.CollectionUtils;
 
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 @Component
 @Slf4j
@@ -126,28 +128,34 @@ public class RpcRequestManager {
 
             //2. 向对端发送数据
             // 创建promise，用于获取对端的响应结果
-            // 针对每个请求构建一个promise，拿到响应后使用其对应的promise设置结果【RpcResponseHandler中设置 requestPromise.setSuccess(response); 然后requestPromise.get();结束阻塞，拿到结果返回】
             RequestPromise requestPromise = new RequestPromise(channel.eventLoop());
             // 建立请求和promise的映射
             RpcRequestHolder.addRequestPromise(request.getRequestId(), requestPromise);
-            // 使用channel，发送数据
-            channel.writeAndFlush(request);
+            // 使用channel，发送数据，并监听写入结果
+            channel.writeAndFlush(request).addListener(future -> {
+                if (!future.isSuccess()) {
+                    requestPromise.setFailure(future.cause());
+                }
+            });
 
-            // 3. 等待promise返回结果
+            // 3. 等待promise返回结果（带超时保护）
             try {
-                // 阻塞等待，直到获取到异步异步执行的响应结果
-                RpcResponse response = (RpcResponse) requestPromise.get();
+                // 阻塞等待，直到获取到异步执行的响应结果，设置超时防止永久阻塞
+                RpcResponse response = (RpcResponse) requestPromise.get(30, TimeUnit.SECONDS);
                 return response;
+            } catch (TimeoutException e) {
+                log.error("请求超时, requestId={}", request.getRequestId());
+                throw new RpcException("RPC请求超时");
             } catch (ExecutionException e) {
-                e.printStackTrace();
-            }finally {
+                log.error("请求执行异常, requestId={}", request.getRequestId(), e);
+                throw new RpcException("RPC请求执行异常: " + e.getCause().getMessage());
+            } finally {
                 // 请求处理完成，移除request和promise的映射
                 RpcRequestHolder.removeRequestPromise(request.getRequestId());
             }
         } catch (InterruptedException e) {
-            e.printStackTrace();
+            Thread.currentThread().interrupt();
+            throw new RpcException("RPC请求被中断");
         }
-        // 出现异常，返回一个默认的 RpcResponse对象
-        return new RpcResponse();
     }
 }

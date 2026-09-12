@@ -25,6 +25,8 @@ public class OrderController {
     public String getOrder(@PathVariable String orderId) {
         log.info("consumer 收到请求, orderId={}", orderId);
         // 这里调用的是 hrpc 生成的代理对象，实际走 Netty 远程调用
-        return orderService.getOrder(orderId);
+        String order = orderService.getOrder(orderId);
+        log.info("consumer 获取订单结果, order={}", order);
+        return order;
     }
 }

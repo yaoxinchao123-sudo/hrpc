@@ -42,47 +42,43 @@ public class NettServer implements RpcServer {
         EventLoopGroup boss = new NioEventLoopGroup(1,new DefaultThreadFactory("boss"));
         EventLoopGroup worker = new NioEventLoopGroup(0,new DefaultThreadFactory("worker"));
         EventExecutorGroup business = new UnorderedThreadPoolEventExecutor(NettyRuntime.availableProcessors()*2,new DefaultThreadFactory("business"));
-        try {
-            ServerBootstrap serverBootstrap = new ServerBootstrap();
-            serverBootstrap.group(boss,worker)
-                    .channel(NioServerSocketChannel.class)
-                    .option(ChannelOption.SO_BACKLOG,1024)
-                    .childOption(ChannelOption.TCP_NODELAY,true)
-                    .childOption(ChannelOption.SO_KEEPALIVE,true)
-                    .handler(new LoggingHandler(LogLevel.INFO))
-                    .childHandler(new ChannelInitializer<SocketChannel>() {
-                        @Override
-                        protected void initChannel(SocketChannel ch) throws Exception {
-                            ChannelPipeline pipeline = ch.pipeline();
-                            //编码
-                            pipeline.addLast("frameEncoder",new FrameEncoder());
-                            pipeline.addLast("responseEncoder",new RpcResponseEncoder());
-                            // 解码
-                            pipeline.addLast("frameDecoder",new FrameDecoder());
-                            pipeline.addLast("requestDecoder",new RpcRequestDecoder());
-                            // business处理handler
-                            pipeline.addLast(business,"rpcRequestHandler",new RpcRequestHandler());
-                        }
-                    });
-            // bind是个异步的，sync将异步是个同步的
-            ChannelFuture future = serverBootstrap.bind(rpcServerConfiguration.getRpcPort()).sync();
-            log.info("服务端绑定端口{}启动成功",rpcServerConfiguration.getRpcPort());
-            // closeFuture是个异步的，sync将异步操作转换成同步操作， 阻塞当前线程，直到服务端关闭
-            future.channel().closeFuture().sync();
-            // 添加关闭监听器
-//            future.channel().closeFuture().addListener((ChannelFutureListener) future1 -> {
-//                log.info("服务端关闭");
-//                business.shutdownGracefully();
-//                worker.shutdownGracefully();
-//                boss.shutdownGracefully();
-//            });
-        } catch (InterruptedException e) {
-            log.error("服务端出现异常,msg={}",e.getMessage());
-        }finally {
-            business.shutdownGracefully();
-            worker.shutdownGracefully();
-            boss.shutdownGracefully();
-        }
+        // 在独立线程中启动 Netty 服务器，避免阻塞 Spring Boot 主线程
+        new Thread(() -> {
+            try {
+                ServerBootstrap serverBootstrap = new ServerBootstrap();
+                serverBootstrap.group(boss,worker)
+                        .channel(NioServerSocketChannel.class)
+                        .option(ChannelOption.SO_BACKLOG,1024)
+                        .childOption(ChannelOption.TCP_NODELAY,true)
+                        .childOption(ChannelOption.SO_KEEPALIVE,true)
+                        .handler(new LoggingHandler(LogLevel.INFO))
+                        .childHandler(new ChannelInitializer<SocketChannel>() {
+                            @Override
+                            protected void initChannel(SocketChannel ch) throws Exception {
+                                ChannelPipeline pipeline = ch.pipeline();
+                                //编码
+                                pipeline.addLast("frameEncoder",new FrameEncoder());
+                                pipeline.addLast("responseEncoder",new RpcResponseEncoder());
+                                // 解码
+                                pipeline.addLast("frameDecoder",new FrameDecoder());
+                                pipeline.addLast("requestDecoder",new RpcRequestDecoder());
+                                // business处理handler
+                                pipeline.addLast(business,"rpcRequestHandler",new RpcRequestHandler());
+                            }
+                        });
+                // bind是个异步的，sync将异步是个同步的
+                ChannelFuture future = serverBootstrap.bind(rpcServerConfiguration.getRpcPort()).sync();
+                log.info("服务端绑定端口{}启动成功",rpcServerConfiguration.getRpcPort());
+                // closeFuture是个异步的，sync将异步操作转换成同步操作， 阻塞当前线程，直到服务端关闭
+                future.channel().closeFuture().sync();
+            } catch (InterruptedException e) {
+                log.error("服务端出现异常,msg={}",e.getMessage());
+            } finally {
+                business.shutdownGracefully();
+                worker.shutdownGracefully();
+                boss.shutdownGracefully();
+            }
+        }, "netty-server-starter").start();
     }
 
 
